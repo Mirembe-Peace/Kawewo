@@ -6,7 +6,6 @@ import { WebSocketServer } from 'ws';
 import { query } from './db.js';
 
 dotenv.config();
-const express = require("express");
 const app = express();
 app.use(cors());
 app.use(express.json());
