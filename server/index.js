@@ -11,6 +11,10 @@ app.use(cors());
 app.use(express.json());
 
 const PORT = process.env.PORT || 4000;
+app.listen(PORT, "0.0.0.0", () => {
+  console.log(`Server running on port ${PORT}`);
+});
+
 
 // Simple health
 app.get('/', (req, res) => res.json({ ok: true }));
