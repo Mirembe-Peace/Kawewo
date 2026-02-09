@@ -1,4 +1,5 @@
 /* eslint-disable react-hooks/refs */
+import { API_URL } from "../config";
 import { useEffect, useRef, useState } from "react";
 
 type Telemetry = {
@@ -18,9 +19,7 @@ export default function FanControl() {
   useEffect(() => {
     // fetch recent telemetry
     fetch(
-      "http://localhost:4000/telemetry/recent?device_id=" +
-        deviceId +
-        "&limit=1",
+      `${API_URL}/telemetry/recent?device_id=${deviceId}&limit=1`
     )
       .then((r) => r.json())
       .then((d) => {
@@ -29,7 +28,8 @@ export default function FanControl() {
       .catch(() => {});
 
     // open websocket to receive live telemetry
-    const ws = new WebSocket("ws://localhost:4000");
+    const wsUrl = API_URL.replace(/^http/, "ws");
+    const ws = new WebSocket(wsUrl);
     wsRef.current = ws;
     ws.addEventListener("open", () => {
       ws.send(JSON.stringify({ type: "register", device_id: deviceId }));
@@ -45,7 +45,7 @@ export default function FanControl() {
 
   const sendCommand = async (value: number) => {
     setSpeed(value);
-    await fetch("http://localhost:4000/command", {
+    await fetch(`${API_URL}/command`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
