@@ -28,7 +28,7 @@ export default function FanControl() {
       .catch(() => {});
 
     // open websocket to receive live telemetry
-    const wsUrl = API_URL.replace(/^http/, "ws");
+    const wsUrl = API_URL.replace(/^https/, "wss");
     const ws = new WebSocket(wsUrl);
     wsRef.current = ws;
     ws.addEventListener("open", () => {

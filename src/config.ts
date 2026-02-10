@@ -1,3 +1,3 @@
 // src/config.js
-export const API_URL: string = "http://your-api-url";
+export const API_URL: string = "https://kawewo-backend.up.railway.app";
 // ...other exports
