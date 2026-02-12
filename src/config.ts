@@ -1,3 +1,3 @@
 // src/config.js
-export const API_URL: string = "https://kawewo-backend.up.railway.app";
+export const API_URL: string = "http://localhost:3000";
 // ...other exports

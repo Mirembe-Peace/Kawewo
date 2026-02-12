@@ -1,12 +1,17 @@
 import { API_URL } from "../config";
 import { useEffect, useRef, useState } from "react";
+import { io, Socket } from "socket.io-client";
 
 type Telemetry = {
   device_id: string;
   temperature?: number;
   humidity?: number;
+  voltage?: number;
+  motion?: number;
+  fan_speed?: number;
   fan_rpm?: number;
   received_at?: string;
+  timestamp?: number;
 };
 
 export default function FanControl() {
@@ -14,7 +19,7 @@ export default function FanControl() {
   const [telemetry, setTelemetry] = useState<Telemetry | null>(null);
   const [speed, setSpeed] = useState<number>(0);
   const [wsConnected, setWsConnected] = useState(false);
-  const wsRef = useRef<WebSocket | null>(null);
+  const socketRef = useRef<Socket | null>(null);
 
   // Fetch recent telemetry once on mount
   useEffect(() => {
@@ -26,39 +31,40 @@ export default function FanControl() {
       .catch((err) => console.error("Failed to fetch recent telemetry:", err));
   }, [deviceId]);
 
-  // Open WebSocket for live telemetry
+  // Connect to Socket.IO for live telemetry
   useEffect(() => {
-    const wsUrl = `${API_URL.replace(/^https/, "wss")}/ws`;
-    const ws = new WebSocket(wsUrl);
-    wsRef.current = ws;
+    // Connect to the NestJS server
+    const socket = io(API_URL);
+    socketRef.current = socket;
 
-    ws.addEventListener("open", () => {
-      console.log("WebSocket connected");
+    socket.on("connect", () => {
+      console.log("Socket.IO connected");
       setWsConnected(true);
-      // Register device
-      ws.send(JSON.stringify({ type: "register", device_id: deviceId }));
+      
+      // Register this client to receive updates for our device
+      socket.emit("register", { device_id: deviceId });
     });
 
-    ws.addEventListener("close", () => {
-      console.log("WebSocket disconnected");
+    socket.on("disconnect", () => {
+      console.log("Socket.IO disconnected");
       setWsConnected(false);
     });
 
-    ws.addEventListener("error", (err) => {
-      console.error("WebSocket error:", err);
+    socket.on("connect_error", (err) => {
+      console.error("Socket.IO connection error:", err);
       setWsConnected(false);
     });
 
-    ws.addEventListener("message", (evt) => {
-      try {
-        const msg = JSON.parse(evt.data);
-        if (msg.type === "telemetry") setTelemetry(msg.data);
-      } catch (e) {
-        console.error("Failed to parse WS message:", e);
+    // Listen for telemetry events broadcast by the server
+    socket.on("telemetry", (payload: { type: string; data: Telemetry }) => {
+      if (payload.type === "telemetry") {
+        setTelemetry(payload.data);
       }
     });
 
-    return () => ws.close();
+    return () => {
+      socket.disconnect();
+    };
   }, [deviceId]);
 
   // Send fan speed command
@@ -89,7 +95,7 @@ export default function FanControl() {
       }}
     >
       <div
-        style={{ maxWidth: "480px", margin: "0 auto", padding: "1.5rem 1rem" }}
+        style={{ maxWidth: "600px", margin: "0 auto", padding: "1.5rem 1rem" }}
       >
         <h1
           style={{
@@ -124,7 +130,7 @@ export default function FanControl() {
             }}
           />
           <span style={{ fontSize: "0.875rem", color: "#cbd5e1" }}>
-            {wsConnected ? "Live data connected" : "Connecting..."}
+            {wsConnected ? "Live Socket.IO connected" : "Connecting..."}
           </span>
         </div>
 
@@ -161,7 +167,7 @@ export default function FanControl() {
               <div
                 style={{ color: "#fff", fontSize: "1.5rem", fontWeight: 600 }}
               >
-                {telemetry?.temperature ?? "—"}°C
+                {telemetry?.temperature?.toFixed(1) ?? "—"}°C
               </div>
             </div>
             {/* Humidity */}
@@ -177,7 +183,39 @@ export default function FanControl() {
               <div
                 style={{ color: "#fff", fontSize: "1.5rem", fontWeight: 600 }}
               >
-                {telemetry?.humidity ?? "—"}%
+                {telemetry?.humidity?.toFixed(1) ?? "—"}%
+              </div>
+            </div>
+            {/* Voltage */}
+            <div
+              style={{
+                padding: "1rem",
+                backgroundColor: "rgba(15,23,42,0.6)",
+                borderRadius: 12,
+                borderLeft: "4px solid #f43f5e",
+              }}
+            >
+              <small style={{ color: "#94a3b8" }}>⚡ Voltage</small>
+              <div
+                style={{ color: "#fff", fontSize: "1.5rem", fontWeight: 600 }}
+              >
+                {telemetry?.voltage?.toFixed(1) ?? "—"}V
+              </div>
+            </div>
+             {/* Motion */}
+             <div
+              style={{
+                padding: "1rem",
+                backgroundColor: "rgba(15,23,42,0.6)",
+                borderRadius: 12,
+                borderLeft: "4px solid #eab308",
+              }}
+            >
+              <small style={{ color: "#94a3b8" }}>🚶 Motion</small>
+              <div
+                style={{ color: "#fff", fontSize: "1.5rem", fontWeight: 600 }}
+              >
+                {telemetry?.motion === 1 ? "Yes" : "No"}
               </div>
             </div>
             {/* Fan RPM */}
@@ -211,6 +249,7 @@ export default function FanControl() {
                   ? new Date(telemetry.received_at).toLocaleTimeString([], {
                       hour: "2-digit",
                       minute: "2-digit",
+                      second: "2-digit"
                     })
                   : "—"}
               </div>
@@ -236,12 +275,12 @@ export default function FanControl() {
             >
               {speed}
             </div>
-            <div style={{ color: "#94a3b8" }}>Current Speed Level</div>
+            <div style={{ color: "#94a3b8" }}>Current Speed Level (0-255)</div>
           </div>
           <input
             type="range"
             min={0}
-            max={5}
+            max={255}
             value={speed}
             onChange={(e) => {
               const value = Number(e.target.value);
